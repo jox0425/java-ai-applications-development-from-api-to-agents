@@ -5,7 +5,6 @@ import java.util.List;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.ChatCompletionAssistantMessageParam;
-import com.openai.models.chat.completions.ChatCompletionChunk;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import commons.model.Message;
 import commons.model.Role;

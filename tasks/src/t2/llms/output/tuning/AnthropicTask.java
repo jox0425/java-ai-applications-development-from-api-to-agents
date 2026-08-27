@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import t2.llms.output.tuning.clients.AnthropicAiClient;
 
+import java.util.List;
 import java.util.Map;
 
 import static commons.Constants.CLAUDE_SONNET_4_5;
@@ -47,7 +48,9 @@ public class AnthropicTask {
                 //  Query: "How many r's are in the word strawberry?"
                 //  Try: "max_tokens", 8000, "thinking", new ObjectMapper().readTree("""{"type": "enabled", "budget_tokens": 5000}""")
                 Map.of(
-
+                    "stop_sequences", List.of("10")
+                    // "max_tokens",8000,
+                    // "thinking", new ObjectMapper().readTree("{\"type\": \"enabled\", \"budget_tokens\": 5000}")
                 )
         );
     }
