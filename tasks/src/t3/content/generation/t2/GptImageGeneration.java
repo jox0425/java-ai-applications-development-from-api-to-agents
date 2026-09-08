@@ -32,6 +32,32 @@ public class GptImageGeneration {
         // - Set 'prompt' to 'Smiling catdog'
         // - Send a POST request to Constants.OPENAI_IMAGES_GENERATIONS_ENDPOINT
         // - Extract 'b64_json' from the response, decode it, and save as a .png file
+
+        var jsonTemplate = """
+                {
+                    "model": "gpt-image-2",
+                    "prompt": "Smiling catdog"
+                }
+            """;
+
+        var request = HttpRequest.newBuilder()
+            .header("Content-Type", "application/json")
+            .headers("Authorization", "Bearer " + System.getenv("OPENAI_API_KEY"))
+            .uri(URI.create(Constants.OPENAI_IMAGES_GENERATIONS_ENDPOINT))
+            .POST(HttpRequest.BodyPublishers.ofString(jsonTemplate))
+            .build();
+        var response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+        var json = MAPPER.readTree(response.body());
+        System.out.println(json);
+
+        var imageInB64 = json.path("data").path(0).path("b64_json").asText();
+        Base64.Decoder decoder = Base64.getDecoder();
+        var imgBytes = decoder.decode(imageInB64);
+        String filename =
+            "generated_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")) + ".png";
+        Path outputPath = Path.of("tasks/src/t3/content/generation/t2/" + filename);
+        Files.write(outputPath, imgBytes);
+
     }
 }
 
