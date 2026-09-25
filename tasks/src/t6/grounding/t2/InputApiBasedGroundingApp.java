@@ -1,19 +1,15 @@
 package t6.grounding.t2;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import java.util.List;
+import java.util.Scanner;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
-import com.openai.models.ResponseFormatJsonObject;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import commons.Constants;
-import commons.exceptions.TaskNotImplementedException;
 import t6.grounding.User;
 import t6.grounding.UserService;
-
-import java.util.List;
-import java.util.Scanner;
-import java.util.stream.Collectors;
 
 public class InputApiBasedGroundingApp {
 
@@ -25,8 +21,25 @@ public class InputApiBasedGroundingApp {
     //   - Only extract values that are clearly stated - do not infer or assume
     //   - Include examples: "Who is John?" → name: "John", "Find John Smith" → name: "John", surname: "Smith"
     private static final String QUERY_ANALYSIS_PROMPT = """
-            
-            """;
+        Act as a query analysis system.
+        You are given a user question and your task is to extract explicit search values for the following fields: name, surname, email.
+        Only extract values that are clearly stated in the question. Do not infer or assume any values. If no explicit values are found, return an empty array.
+          ## Examples:
+            - "Who is John?" → name: "John"
+            - "Find users with surname Smith" → surname: "Smith"
+            - "Look for john@example.com" → email: "john@example.com"
+            - "Find John Smith" → name: "John", surname: "Smith"
+            - "I need user emails that filled with hiking" → No clear search parameters (return empty list)
+        
+            ## Response Format (always return valid JSON):
+            {
+              "search_request_parameters": [
+                {"search_field": "name", "search_value": "John"},
+                {"search_field": "surname", "search_value": "Smith"}
+              ]
+            }
+            search_field must be one of: "name", "surname", "email"
+        """;
 
     //TODO:
     // Define SYSTEM_PROMPT - instructs the LLM to act as a RAG-powered assistant:
@@ -35,16 +48,19 @@ public class InputApiBasedGroundingApp {
     //   - If no relevant information exists in RAG CONTEXT, state that the question cannot be answered
     //   - Format user information clearly when presenting it
     private static final String SYSTEM_PROMPT = """
-            
-            """;
+        Act as a RAG-powered assistant. The user message contains two sections: RAG CONTEXT and USER QUESTION.
+        Answer ONLY based on the provided RAG CONTEXT and conversation history. If no relevant information exists in RAG CONTEXT, state that the question cannot be answered.
+        Format user information clearly when presenting it.
+        """;
 
     //TODO:
     // Define USER_PROMPT template with two placeholders:
     //   - {context} - the retrieved user data formatted as text
     //   - {query}   - the user's original question
     private static final String USER_PROMPT = """
-            
-            """;
+        CONTEXT: {context}
+        USER QUESTION: {query}
+        """;
 
     private final OpenAIClient openAiClient;
     private final UserService userService;
@@ -52,8 +68,8 @@ public class InputApiBasedGroundingApp {
 
     public InputApiBasedGroundingApp() {
         this.openAiClient = OpenAIOkHttpClient.builder()
-                .apiKey(Constants.OPENAI_API_KEY)
-                .build();
+            .apiKey(Constants.OPENAI_API_KEY)
+            .build();
         this.userService = new UserService();
     }
 
@@ -67,7 +83,42 @@ public class InputApiBasedGroundingApp {
         // - Iterate params: switch on "search_field" to assign name/surname/email variables
         // - Print search parameters and return userService.searchUsers(name, surname, email)
         // - Wrap checked exceptions in RuntimeException
-        throw new TaskNotImplementedException();
+        var params = ChatCompletionCreateParams.builder()
+            .model(Constants.GPT_4_1_NANO)
+            .temperature(0.0)
+            .addSystemMessage(QUERY_ANALYSIS_PROMPT)
+            .addUserMessage(userQuestion)
+            .build();
+
+        var completion = openAiClient.chat().completions().create(params);
+        String responseJson = completion.choices().getFirst().message().content().orElse("{}");
+
+        try {
+            var root = objectMapper.readTree(responseJson);
+            var searchParams = root.path("search_request_parameters");
+
+            if (searchParams.isMissingNode() || !searchParams.isArray() || searchParams.isEmpty()) {
+                System.out.println("No specific search parameters found!");
+                return List.of();
+            }
+
+            String name = null, surname = null, email = null;
+            for (var param : searchParams) {
+                var field = param.path("search_field").asText();
+                var value = param.path("search_value").asText();
+                switch (field) {
+                    case "name" -> name = value;
+                    case "surname" -> surname = value;
+                    case "email" -> email = value;
+                }
+            }
+
+            System.out.printf("Searching with parameters: name=%s, surname=%s, email=%s%n", name, surname, email);
+            return userService.searchUsers(name, surname, email);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse search parameters: " + e.getMessage(), e);
+        }
     }
 
     private String augmentPrompt(String userQuestion, List<User> context) {
@@ -76,7 +127,14 @@ public class InputApiBasedGroundingApp {
         // - Build augmented prompt by replacing {context} and {query} in USER_PROMPT
         // - Print augmented prompt
         // - Return augmented prompt
-        throw new TaskNotImplementedException();
+        var contextStr = context.stream()
+            .map(User::toDocument)
+            .reduce((a, b) -> a + "\n" + b)
+            .orElse("");
+
+        var augmentedPrompt = USER_PROMPT.replace("{context}", contextStr).replace("{query}", userQuestion);
+        System.out.println("Augmented prompt:\n" + augmentedPrompt);
+        return augmentedPrompt;
     }
 
     private String generateAnswer(String augmentedPrompt) {
@@ -84,7 +142,14 @@ public class InputApiBasedGroundingApp {
         // - Build ChatCompletionCreateParams with GPT_4O_MINI, temperature=0.0, SYSTEM_PROMPT and augmentedPrompt
         // - Call openAiClient.chat().completions().create(params)
         // - Return content from completion.choices().get(0).message().content() (default to "" if absent)
-        throw new TaskNotImplementedException();
+        var params = ChatCompletionCreateParams.builder()
+            .model(Constants.GPT_4O_MINI)
+            .temperature(0.0)
+            .addSystemMessage(SYSTEM_PROMPT)
+            .addUserMessage(augmentedPrompt)
+            .build();
+        var response = openAiClient.chat().completions().create(params);
+        return response.choices().getFirst().message().content().orElse("");
     }
 
     public static void main(String[] args) {
@@ -100,10 +165,16 @@ public class InputApiBasedGroundingApp {
         while (true) {
             System.out.print("\n> ");
             System.out.flush();
-            if (!scanner.hasNextLine()) break;
+            if (!scanner.hasNextLine()) {
+                break;
+            }
             String userQuestion = scanner.nextLine().strip();
-            if (userQuestion.isEmpty()) continue;
-            if (userQuestion.equalsIgnoreCase("quit") || userQuestion.equalsIgnoreCase("exit")) break;
+            if (userQuestion.isEmpty()) {
+                continue;
+            }
+            if (userQuestion.equalsIgnoreCase("quit") || userQuestion.equalsIgnoreCase("exit")) {
+                break;
+            }
 
             //TODO:
             // - Print "\n--- Retrieving context ---"
@@ -114,6 +185,17 @@ public class InputApiBasedGroundingApp {
             //   - Print "\n--- Generating answer ---"
             //   - Call app.generateAnswer(augmented), print "\nAnswer: {answer}\n"
             // - Otherwise: print "\n--- No relevant information found ---"
+            System.out.println("\n--- Retrieving context ---");
+            var context = app.retrieveContext(userQuestion);
+            if (!context.isEmpty()) {
+                System.out.println("\n--- Augmenting prompt ---");
+                var augmented = app.augmentPrompt(userQuestion, context);
+                System.out.println("\n--- Generating answer ---");
+                var answer = app.generateAnswer(augmented);
+                System.out.println("\nAnswer: " + answer + "\n");
+            } else {
+                System.out.println("\n--- No relevant information found ---");
+            }
         }
     }
 }
