@@ -1,13 +1,5 @@
 package t6.grounding.t1;
 
-import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
-import com.openai.models.chat.completions.ChatCompletionCreateParams;
-import commons.Constants;
-import commons.exceptions.TaskNotImplementedException;
-import t6.grounding.User;
-import t6.grounding.UserService;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -15,6 +7,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.openai.models.completions.CompletionUsage;
+import commons.Constants;
+import t6.grounding.User;
+import t6.grounding.UserService;
 
 public class NoGroundingApp {
 
@@ -25,8 +25,12 @@ public class NoGroundingApp {
     //    - Return full details of matching users in their original format
     //    - Return exactly "NO_MATCHES_FOUND" if no users match
     private static final String BATCH_SYSTEM_PROMPT = """
-            
-            """;
+        You are a user search assistant. Your task is the following:
+            - Analyze the search criteria from the user question
+            - Examine each user in the provided list and determine if they match
+            - Return full details of matching users in their original format
+            - Return exactly "NO_MATCHES_FOUND" if no users match
+        """;
 
     //TODO:
     // Define FINAL_SYSTEM_PROMPT - instructs the LLM to compile final search results:
@@ -34,19 +38,22 @@ public class NoGroundingApp {
     //   - Combine and deduplicate matching users found across batches
     //   - Present results in a clear, organized manner
     private static final String FINAL_SYSTEM_PROMPT = """
-            
-            """;
+        Your task is to complete the final search results in the following way:
+           - Review all batch search results
+           - Combine and deduplicate matching users found across batches
+           - Present results in a clear, organized manner
+        """;
 
     //TODO:
     // Define USER_PROMPT template with two placeholders:
     //   - {context} - the formatted user data
     //   - {query}   - the user's search question
     private static final String USER_PROMPT = """
-            ## USER DATA:
-            {context}
-
-            ## SEARCH QUERY:\s
-            {query}""";
+        ## USER DATA:
+        {context}
+        
+        ## SEARCH QUERY:\s
+        {query}""";
 
     private final OpenAIClient openAiClient;
     private final UserService userService;
@@ -55,8 +62,8 @@ public class NoGroundingApp {
 
     public NoGroundingApp() {
         this.openAiClient = OpenAIOkHttpClient.builder()
-                .apiKey(Constants.OPENAI_API_KEY)
-                .build();
+            .apiKey(Constants.OPENAI_API_KEY)
+            .build();
         this.userService = new UserService();
     }
 
@@ -69,7 +76,26 @@ public class NoGroundingApp {
         // - Extract content string from completion.choices().get(0).message().content()
         // - Print response content and token count
         // - Return content string
-        throw new TaskNotImplementedException();
+        var params = new ChatCompletionCreateParams.Builder()
+            .model(Constants.GPT_4_1_NANO)
+            .temperature(0.0)
+            .addSystemMessage(systemPrompt)
+            .addUserMessage(userMessage)
+            .build();
+        var completion = openAiClient.chat().completions().create(params);
+
+        completion.usage()
+            .map(CompletionUsage::totalTokens)
+            .map(Long::intValue)
+            .ifPresent(total -> {
+                totalTokens.addAndGet(total);
+                batchTokens.add(total);
+            });
+
+        var message = completion.choices().getFirst().message().content();
+        message.ifPresent(System.out::println);
+        System.out.println("Total tokens: " + totalTokens.get());
+        return message.orElse(null);
     }
 
     public void run(String userQuestion) {
@@ -87,6 +113,51 @@ public class NoGroundingApp {
         // - If relevant results exist: join with "\n\n" and call generateResponse with FINAL_SYSTEM_PROMPT
         // - Otherwise: print "No users found" message and suggest refinement
         // - Print "\n=== Performance ===" with total API calls (batchTokens.size()) and totalTokens
+        System.out.println("\n--- Searching user database ---");
+        var users = userService.getAllUsers();
+
+        List<List<User>> batches = new ArrayList<>();
+        for (int i = 0; i < users.size(); i += 100) {
+            batches.add(users.subList(i, Math.min(i + 100, users.size())));
+        }
+
+        List<CompletableFuture<String>> futures = batches.stream()
+            .map(batch -> CompletableFuture.supplyAsync(() -> generateResponse(
+                BATCH_SYSTEM_PROMPT,
+                USER_PROMPT
+                    .replace("{context}", batch.stream()
+                        .map(User::toDocument)
+                        .collect(Collectors.joining("\n")))
+                    .replace("{query}", userQuestion)
+            )))
+            .toList();
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        List<String> batchResults = futures.stream()
+            .map(CompletableFuture::join)
+            .toList();
+
+        System.out.println("\n--- Compiling results ---");
+
+        List<String> relevantResults = batchResults.stream()
+            .filter(r -> !r.strip().equals("NO_MATCHES_FOUND"))
+            .toList();
+
+        System.out.println("\n=== SEARCH RESULTS ===");
+        if (!relevantResults.isEmpty()) {
+            String combined = String.join("\n\n", relevantResults);
+            generateResponse(
+                FINAL_SYSTEM_PROMPT,
+                "SEARCH RESULTS:\n" + combined + "\n\nORIGINAL QUERY: " + userQuestion
+            );
+        } else {
+            System.out.println("No users found matching '" + userQuestion + "'");
+            System.out.println("\nTry refining your search or using different keywords.");
+        }
+
+        System.out.println("\n=== Performance ===");
+        System.out.println("Total API calls: " + batchTokens.size());
+        System.out.println("Total tokens: " + totalTokens.get());
     }
 
     public static void main(String[] args) {
@@ -99,9 +170,13 @@ public class NoGroundingApp {
         while (true) {
             System.out.print("\n> ");
             System.out.flush();
-            if (!scanner.hasNextLine()) break;
+            if (!scanner.hasNextLine()) {
+                break;
+            }
             String query = scanner.nextLine().strip();
-            if (query.isEmpty()) continue;
+            if (query.isEmpty()) {
+                continue;
+            }
             app.run(query);
         }
     }
