@@ -1,11 +1,11 @@
 package t8.agent.task.tools.users;
 
+import java.util.Map;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import commons.exceptions.TaskNotImplementedException;
 import commons.user.service.UserCreate;
 import commons.user.service.UserServiceClient;
-
-import java.util.Map;
 
 public class CreateUserTool extends BaseUserServiceTool {
 
@@ -18,21 +18,54 @@ public class CreateUserTool extends BaseUserServiceTool {
     @Override
     public String getName() {
         //TODO: Return tool name "add_user"
-        throw new TaskNotImplementedException();
+        return "add_user";
     }
 
     @Override
     public String getDescription() {
         //TODO: Return a short description of what this tool does
-        throw new TaskNotImplementedException();
+        return "Adds a new user to the User Service.";
     }
 
     @Override
     public String getInputSchema() {
-        //TODO: Return JSON schema — required: name, surname, email, about_me;
-        //   optional: phone, date_of_birth, address (country/city/street/flat_house),
-        //   gender, company, salary, credit_card (num/cvv/exp_date)
-        throw new TaskNotImplementedException();
+        return """
+            {
+              "type": "object",
+              "required": ["name", "surname", "email", "about_me"],
+              "properties": {
+                "name": { "type": "string" },
+                "surname": { "type": "string" },
+                "email": { "type": "string" },
+                "about_me": { "type": "string" },
+                "phone": { "type": ["string", "null"] },
+                "date_of_birth": { "type": ["string", "null"] },
+                "address": {
+                  "type": ["object", "null"],
+                  "properties": {
+                    "country": { "type": ["string", "null"] },
+                    "city": { "type": ["string", "null"] },
+                    "street": { "type": ["string", "null"] },
+                    "flat_house": { "type": ["string", "null"] }
+                  }
+                },
+                "gender": {
+                  "type": ["string", "null"],
+                  "enum": ["male", "female", null]
+                },
+                "company": { "type": ["string", "null"] },
+                "salary": { "type": ["number", "null"] },
+                "credit_card": {
+                  "type": ["object", "null"],
+                  "properties": {
+                    "num": { "type": ["string", "null"] },
+                    "cvv": { "type": ["string", "null"] },
+                    "exp_date": { "type": ["string", "null"] }
+                  }
+                }
+              }
+            }
+            """;
     }
 
     @Override
@@ -41,6 +74,11 @@ public class CreateUserTool extends BaseUserServiceTool {
         // - Convert `arguments` to `UserCreate` via `objectMapper.convertValue(arguments, UserCreate.class)`
         // - Call `userClient.addUser(user)` and return the result
         // - Wrap in try-catch and return error string on exception
-        throw new TaskNotImplementedException();
+        var userCreate = objectMapper.convertValue(arguments, UserCreate.class);
+        try {
+            return userClient.addUser(userCreate);
+        } catch (Exception e) {
+            return "Error adding user: " + e.getMessage();
+        }
     }
 }

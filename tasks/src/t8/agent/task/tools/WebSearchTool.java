@@ -1,16 +1,15 @@
 package t8.agent.task.tools;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import commons.Constants;
-import commons.exceptions.TaskNotImplementedException;
-
-import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.List;
 import java.util.Map;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import commons.Constants;
 
 public class WebSearchTool extends BaseTool {
 
@@ -29,19 +28,30 @@ public class WebSearchTool extends BaseTool {
     @Override
     public String getName() {
         //TODO: Return tool name "web_search_tool"
-        throw new TaskNotImplementedException();
+        return "web_search_tool";
     }
 
     @Override
     public String getDescription() {
         //TODO: Return a short description of what this tool does
-        throw new TaskNotImplementedException();
+        return "A tool that performs web searches using the OpenAI API.";
     }
 
     @Override
     public String getInputSchema() {
         //TODO: Return JSON schema for this tool — accepts a "request" string parameter (required)
-        throw new TaskNotImplementedException();
+        return """
+            {
+                    "type": "object",
+                    "properties": {
+                        "request": {
+                            "type": "string",
+                            "description": "The search query to perform."
+                        }
+                    },
+                    "required": ["request"]
+                }
+            """;
     }
 
     @Override
@@ -56,6 +66,42 @@ public class WebSearchTool extends BaseTool {
         // - On HTTP 200: traverse output → find item with type "message"
         //   → find content block with type "output_text" → return its "text"
         // - Return error string on non-200 or exception (e.g. "Error: " + statusCode + " " + body)
-        throw new TaskNotImplementedException();
+        try {
+            var requestPayload = String.format("""
+                {
+                    "model": "gpt-5.4",
+                    "tools": [{"type": "web_search"}],
+                    "input": "%s"
+                }
+                """, arguments.get("request"));
+            var request = HttpRequest.newBuilder()
+                .POST(HttpRequest.BodyPublishers.ofString(requestPayload))
+                .uri(URI.create(endpoint))
+                .header("Authorization", apiKey)
+                .header("Content-Type", "application/json")
+                .build();
+            var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                return extractOutputText(response.body());
+            } else {
+                return "Error: " + response.statusCode() + " " + response.body();
+            }
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    private String extractOutputText(String root) throws JsonProcessingException {
+        var rootNode = objectMapper.readTree(root);
+        for (JsonNode item : rootNode.path("output")) {
+            if ("message".equals(item.path("type").asText())) {
+                for (JsonNode contentPart : item.path("content")) {
+                    if ("output_text".equals(contentPart.path("type").asText())) {
+                        return contentPart.path("text").asText("");
+                    }
+                }
+            }
+        }
+        throw new RuntimeException("No output text found in the response");
     }
 }
