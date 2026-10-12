@@ -44,9 +44,9 @@ public class App {
         tools.add(new CreateUserTool(userServiceClient));
         tools.add(new UpdateUserTool(userServiceClient));
         tools.add(new DeleteUserTool(userServiceClient));
-        var agent = new OpenAIBasedAgent(
-                Constants.GPT_4_1_NANO,
-                Constants.OPENAI_API_KEY,
+        var agent = new AnthropicBasedAgent(
+                Constants.CLAUDE_SONNET_4_5,
+                Constants.ANTHROPIC_API_KEY,
                 tools,
                 Prompts.SYSTEM_PROMPT
         );
