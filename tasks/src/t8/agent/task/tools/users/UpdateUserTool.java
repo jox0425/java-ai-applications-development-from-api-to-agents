@@ -1,11 +1,11 @@
 package t8.agent.task.tools.users;
 
+import java.util.Map;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import commons.exceptions.TaskNotImplementedException;
 import commons.user.service.UserServiceClient;
 import commons.user.service.UserUpdate;
-
-import java.util.Map;
 
 public class UpdateUserTool extends BaseUserServiceTool {
 
@@ -18,13 +18,13 @@ public class UpdateUserTool extends BaseUserServiceTool {
     @Override
     public String getName() {
         //TODO: Return tool name "update_user"
-        throw new TaskNotImplementedException();
+        return "update_user";
     }
 
     @Override
     public String getDescription() {
         //TODO: Return a short description of what this tool does
-        throw new TaskNotImplementedException();
+        return "Updates user information in the User Service by user ID.";
     }
 
     @Override
@@ -32,7 +32,49 @@ public class UpdateUserTool extends BaseUserServiceTool {
         //TODO: Return JSON schema — required: id (number, user ID to update);
         //   optional new_info object with updatable user fields (name, surname, email, phone,
         //   date_of_birth, address, gender, company, salary, credit_card)
-        throw new TaskNotImplementedException();
+        return """
+            {
+              "type": "object",
+              "required": ["id"],
+              "properties": {
+                "id": { "type": "number", "description": "User ID to update" },
+                "new_info": {
+                  "type": ["object", "null"],
+                  "description": "New user information to update",
+                  "properties": {
+                    "name": { "type": ["string", "null"] },
+                    "surname": { "type": ["string", "null"] },
+                    "email": { "type": ["string", "null"] },
+                    "phone": { "type": ["string", "null"] },
+                    "date_of_birth": { "type": ["string", "null"] },
+                    "address": {
+                      "type": ["object", "null"],
+                      "properties": {
+                        "country": { "type": ["string", "null"] },
+                        "city": { "type": ["string", "null"] },
+                        "street": { "type": ["string", "null"] },
+                        "flat_house": { "type": ["string", "null"] }
+                      }
+                    },
+                    "gender": {
+                      "type": ["string", "null"],
+                      "enum": ["male", "female", null]
+                    },
+                    "company": { "type": ["string", "null"] },
+                    "salary": { "type": ["number", "null"] },
+                    "credit_card": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "num": { "type": ["string", "null"] },
+                            "cvv": { "type": ["string", "null"] },
+                            "exp_date": { "type": ["string", "null"] }
+                        }
+                    }
+                  }
+                }
+              }
+            }
+            """;
     }
 
     @Override
@@ -44,6 +86,13 @@ public class UpdateUserTool extends BaseUserServiceTool {
         // - Convert `new_info` to `UserUpdate` via `objectMapper.convertValue(newInfo, UserUpdate.class)`
         // - Call `userClient.updateUser(userId, user)` and return the result
         // - Wrap in try-catch and return error string on exception
-        throw new TaskNotImplementedException();
+        var id = (Number) arguments.get("id");
+        var newInfo = (Map<String, Object>) arguments.get("new_info");
+        try {
+            var userUpdate = objectMapper.convertValue(newInfo, UserUpdate.class);
+            return userClient.updateUser(id.intValue(), userUpdate);
+        } catch (Exception e) {
+            return "Error updating user: " + e.getMessage();
+        }
     }
 }

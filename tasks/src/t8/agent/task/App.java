@@ -36,5 +36,40 @@ public class App {
         //   - Call agent.getResponse(messages, true) to get the AI reply
         //   - Sync any intermediate tool-call/tool-result messages back into conversation
         //   - Add the AI reply to conversation and print it
+        UserServiceClient userServiceClient = new UserServiceClient();
+        List<BaseTool> tools = new ArrayList<>();
+        tools.add(new WebSearchTool(System.getenv(Constants.OPENAI_API_KEY)));
+        tools.add(new GetUserByIdTool(userServiceClient));
+        tools.add(new SearchUsersTool(userServiceClient));
+        tools.add(new CreateUserTool(userServiceClient));
+        tools.add(new UpdateUserTool(userServiceClient));
+        tools.add(new DeleteUserTool(userServiceClient));
+        var agent = new OpenAIBasedAgent(
+                Constants.GPT_4_1_NANO,
+                Constants.OPENAI_API_KEY,
+                tools,
+                Prompts.SYSTEM_PROMPT
+        );
+
+        System.out.println("Welcome to the AI Agent! Type your message below (type 'exit' to quit):");
+        Scanner scanner = new Scanner(System.in);
+        Conversation conversation = new Conversation();
+        while (true) {
+            System.out.print("You: ");
+            String userInput = scanner.nextLine();
+            if (userInput.equalsIgnoreCase("exit")) {
+                break;
+            }
+            conversation.addMessage(new Message(Role.USER, userInput));
+            List<Message> messagesCopy = new ArrayList<>(conversation.getMessages());
+            int initialSize = messagesCopy.size();
+            Message aiResponse = agent.getResponse(messagesCopy, true);
+            // Sync any intermediate tool-call/tool-result messages back into conversation
+            for (int i = initialSize; i < messagesCopy.size(); i++) {
+                conversation.addMessage(messagesCopy.get(i));
+            }
+            conversation.addMessage(aiResponse);
+            System.out.println("AI: " + aiResponse.content());
+            }
     }
 }
