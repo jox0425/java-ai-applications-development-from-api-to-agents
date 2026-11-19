@@ -97,6 +97,30 @@ public class Agent {
         // - deserialize argumentsJson to Map<String, Object> using objectMapper.readValue()
         // - call mcpClient.callTool(functionName, arguments); on exception build error message string
         // - add result as ChatCompletionMessageParam.ofTool() with toolCallId and content
+        for (ChatCompletionMessageToolCall toolCall : toolCalls) {
+            String toolCallId = toolCall.id();
+            String functionName = toolCall.function().name();
+            String argumentsJson = toolCall.function().arguments();
+
+            try {
+                Map<String, Object> arguments = objectMapper.readValue(argumentsJson, Map.class);
+                String result = mcpClient.callTool(functionName, arguments);
+                messages.add(ChatCompletionMessageParam.ofTool(
+                        ChatCompletionToolMessageParam.builder()
+                                .toolCallId(toolCallId)
+                                .content(result)
+                                .build()
+                ));
+            } catch (IOException e) {
+                String errorMessage = "Error processing tool call: " + e.getMessage();
+                messages.add(ChatCompletionMessageParam.ofTool(
+                        ChatCompletionToolMessageParam.builder()
+                                .toolCallId(toolCallId)
+                                .content(errorMessage)
+                                .build()
+                ));
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

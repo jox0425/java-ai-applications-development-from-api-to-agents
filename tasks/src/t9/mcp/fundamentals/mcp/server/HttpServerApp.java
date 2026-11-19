@@ -24,5 +24,19 @@ public class HttpServerApp {
         //      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
         //      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
         // - run the app
+        SpringApplication app = new SpringApplication(HttpServerApp.class);
+        app.setDefaultProperties(Map.of(
+                "server.port", "8005",
+                "spring.ai.mcp.server.name", "HttpServerApp",
+                "spring.ai.mcp.server.version", "1.0.0",
+                "spring.ai.mcp.server.protocol", "STREAMABLE",
+                "logging.level.io.modelcontextprotocol", "DEBUG",
+                "logging.level.org.springaicommunity.mcp", "DEBUG",
+                "logging.level.t9.mcp.fundamentals", "INFO",
+                "spring.autoconfigure.exclude", String.join(",",
+                        "org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration",
+                        "org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration")
+        ));
+        app.run(args);
     }
 }
