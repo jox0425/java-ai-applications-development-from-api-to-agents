@@ -21,5 +21,17 @@ public class HttpClient extends BaseClient {
         // - create McpClient.sync(transport).build() and assign to mcpClient
         // - print connection start message, call mcpClient.initialize() then initToolCallbackProvider()
         // - print connected message
+        int lastSlashIndex = mcpServerUrl.lastIndexOf('/');
+        String baseUrl = mcpServerUrl.substring(0, lastSlashIndex);
+        String endpoint = mcpServerUrl.substring(lastSlashIndex + 1);
+        HttpClientStreamableHttpTransport transport = HttpClientStreamableHttpTransport.builder(baseUrl)
+                .endpoint(endpoint)
+                .jsonMapper(new JacksonMcpJsonMapper(objectMapper))
+                .build();
+        mcpClient = McpClient.sync(transport).build();
+        System.out.println("Connecting to MCP server at " + mcpServerUrl + "...");
+        mcpClient.initialize();
+        initToolCallbackProvider();
+        System.out.println("Connected to MCP server at " + mcpServerUrl);
     }
 }
