@@ -73,6 +73,9 @@ public class UpdateUserTool extends BaseUserServiceTool {
         // - extract 'id' and 'new_info' map from arguments
         // - convert 'new_info' map to UserUpdate object using objectMapper
         // - call userServiceClient.updateUser() and return result
-        throw new TaskNotImplementedException();
+        int userId = (int) arguments.get("id");
+        Map<String, Object> newInfoMap = (Map<String, Object>) arguments.get("new_info");
+        UserUpdate userUpdate = objectMapper.convertValue(newInfoMap, UserUpdate.class);
+        return userServiceClient.updateUser(userId, userUpdate);
     }
 }

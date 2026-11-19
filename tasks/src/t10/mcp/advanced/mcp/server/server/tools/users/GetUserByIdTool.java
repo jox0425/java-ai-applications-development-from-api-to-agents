@@ -1,10 +1,9 @@
 package t10.mcp.advanced.mcp.server.server.tools.users;
 
-import commons.user.service.UserServiceClient;
-import commons.exceptions.TaskNotImplementedException;
-import t10.mcp.advanced.mcp.server.server.tools.BaseUserServiceTool;
-
 import java.util.Map;
+
+import commons.user.service.UserServiceClient;
+import t10.mcp.advanced.mcp.server.server.tools.BaseUserServiceTool;
 
 public class GetUserByIdTool extends BaseUserServiceTool {
 
@@ -25,14 +24,14 @@ public class GetUserByIdTool extends BaseUserServiceTool {
     @Override
     public String getInputSchema() {
         return """
-                {
-                  "type": "object",
-                  "properties": {
-                    "id": {"type": "number", "description": "User ID"}
-                  },
-                  "required": ["id"]
-                }
-                """;
+            {
+              "type": "object",
+              "properties": {
+                "id": {"type": "number", "description": "User ID"}
+              },
+              "required": ["id"]
+            }
+            """;
     }
 
     @Override
@@ -40,6 +39,7 @@ public class GetUserByIdTool extends BaseUserServiceTool {
         //TODO:
         // - extract 'id' from arguments and convert to int
         // - call userServiceClient.getUser() and return result
-        throw new TaskNotImplementedException();
+        int userId = (int) arguments.get("id");
+        return userServiceClient.getUser(userId);
     }
 }
