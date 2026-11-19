@@ -22,6 +22,14 @@ public abstract class BaseTool {
         //TODO:
         // - create Map with tool metadata (name, description)
         // - parse and add inputSchema from getInputSchema() JSON string
-        throw new TaskNotImplementedException();
+        Map<String, Object> toolMap = new LinkedHashMap<>();
+        toolMap.put("name", getName());
+        toolMap.put("description", getDescription());
+        try {
+            toolMap.put("inputSchema", MAPPER.readValue(getInputSchema(), Map.class));
+        } catch (Exception e) {
+            throw new TaskNotImplementedException("Failed to parse inputSchema JSON for tool: " +getName());
+        }
+        return toolMap;
     }
 }

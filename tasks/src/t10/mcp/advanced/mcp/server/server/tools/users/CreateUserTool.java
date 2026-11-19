@@ -66,6 +66,7 @@ public class CreateUserTool extends BaseUserServiceTool {
         //TODO:
         // - convert arguments map to UserCreate object using objectMapper
         // - call userServiceClient.addUser() and return result
-        throw new TaskNotImplementedException();
+        UserCreate userCreate = objectMapper.convertValue(arguments, UserCreate.class);
+        return userServiceClient.addUser(userCreate);
     }
 }

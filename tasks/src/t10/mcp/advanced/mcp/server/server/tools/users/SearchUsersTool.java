@@ -43,6 +43,10 @@ public class SearchUsersTool extends BaseUserServiceTool {
         //TODO:
         // - extract search parameters (name, surname, email, gender) from arguments
         // - call userServiceClient.searchUsers() and return result
-        throw new TaskNotImplementedException();
+        String name = (String) arguments.get("name");
+        String surname = (String) arguments.get("surname");
+        String email = (String) arguments.get("email");
+        String gender = (String) arguments.get("gender");
+        return userServiceClient.searchUsers(name, surname, email, gender);
     }
 }
